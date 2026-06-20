@@ -15,11 +15,13 @@ import { IMAGE_SIZES } from '$lib/types';
  * with no R2 at all, files are streamed from disk.
  */
 
-const bucket = process.env.R2_BUCKET;
-const accountId = process.env.R2_ACCOUNT_ID;
-const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-const publicBase = process.env.R2_PUBLIC_URL?.replace(/\/+$/, '') || null;
+import { env } from '$env/dynamic/private';
+
+const bucket = env.R2_BUCKET || process.env.R2_BUCKET;
+const accountId = env.R2_ACCOUNT_ID || process.env.R2_ACCOUNT_ID;
+const accessKeyId = env.R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID;
+const secretAccessKey = env.R2_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY;
+const publicBase = (env.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL)?.replace(/\/+$/, '') || null;
 
 export const usingR2 = !!(bucket && accountId && accessKeyId && secretAccessKey);
 

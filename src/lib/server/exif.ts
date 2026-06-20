@@ -1,16 +1,20 @@
-import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import sharp from 'sharp';
 import type { ExifData } from '$lib/types';
 import { normalizeGear } from '$lib/camera';
 
-const execFileAsync = promisify(execFile);
+// child_process and sharp are loaded dynamically — they only run on the local
+// laptop during admin uploads, not on Cloudflare Workers in production.
+const loadExecFile = async () => {
+	const { execFile } = await import('node:child_process');
+	return promisify(execFile);
+};
 
 let exiftoolAvailable: boolean | null = null;
 
 async function hasExiftool(): Promise<boolean> {
 	if (exiftoolAvailable !== null) return exiftoolAvailable;
 	try {
+		const execFileAsync = await loadExecFile();
 		await execFileAsync('exiftool', ['-ver']);
 		exiftoolAvailable = true;
 	} catch {
@@ -52,6 +56,7 @@ export async function extractExif(filePath: string): Promise<ExifData> {
 
 	if (await hasExiftool()) {
 		try {
+			const execFileAsync = await loadExecFile();
 			const { stdout } = await execFileAsync('exiftool', [
 				'-json',
 				'-n', // numeric values
@@ -85,6 +90,7 @@ export async function extractExif(filePath: string): Promise<ExifData> {
 
 	// Fallback: sharp exposes a parsed subset of EXIF
 	try {
+		const sharp = (await import('sharp')).default;
 		const meta = await sharp(filePath).metadata();
 		const exif = (meta as { exif?: Buffer }).exif;
 		if (!exif) return empty;

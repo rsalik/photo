@@ -1,5 +1,8 @@
 import path from 'node:path';
-import sharp from 'sharp';
+// sharp is loaded dynamically — it's a native binary that only runs on the local
+// laptop (admin uploads), not on Cloudflare Workers in production.
+type Sharp = typeof import('sharp');
+const loadSharp = (): Promise<Sharp> => import('sharp').then(m => m.default ?? m) as Promise<Sharp>;
 import { putDerived, putOriginal } from './storage';
 import { IMAGE_SIZES } from '$lib/types';
 
@@ -15,6 +18,7 @@ export interface ProcessedImage {
  * blurred placeholder (inlined as a data URI). All local compute via sharp.
  */
 export async function processImage(buffer: Buffer, id: string, originalName: string): Promise<ProcessedImage> {
+	const sharp = await loadSharp();
 	const img = sharp(buffer, { failOn: 'none' }).rotate(); // bake in EXIF orientation
 	const meta = await img.metadata();
 	if (!meta.width || !meta.height) throw new Error('Could not read image dimensions');
@@ -85,6 +89,7 @@ export interface TitleColorResult {
 
 export async function detectTitleColor(buffer: Buffer): Promise<TitleColorResult> {
 	const SIZE = 48;
+	const sharp = await loadSharp();
 	const { data, info } = await sharp(buffer, { failOn: 'none' })
 		.rotate()
 		.resize(SIZE, SIZE, { fit: 'fill' })

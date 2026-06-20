@@ -9,11 +9,19 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
 
 function sessionSecret(): string {
 	if (env.SESSION_SECRET) return env.SESSION_SECRET;
-	const file = path.join(DATA_DIR, '.session-secret');
-	if (!fs.existsSync(file)) {
-		fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+	// In production (serverless), SESSION_SECRET env var is required.
+	// Filesystem fallback is for local dev only.
+	try {
+		const file = path.join(DATA_DIR, '.session-secret');
+		if (!fs.existsSync(file)) {
+			fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+		}
+		return fs.readFileSync(file, 'utf8').trim();
+	} catch {
+		// No filesystem available — generate an ephemeral secret.
+		// Sessions won't survive cold starts; set SESSION_SECRET for persistence.
+		return crypto.randomBytes(32).toString('hex');
 	}
-	return fs.readFileSync(file, 'utf8').trim();
 }
 
 const SECRET = sessionSecret();

@@ -36,7 +36,16 @@ interface Backend {
 let ready: Promise<Backend> | null = null;
 
 async function initBackend(): Promise<Backend> {
-	const url = process.env.DATABASE_URL;
+	let url = process.env.DATABASE_URL;
+	try {
+		// @ts-ignore
+		const svelteEnv = await import('$env/dynamic/private');
+		if (svelteEnv?.env?.DATABASE_URL) {
+			url = svelteEnv.env.DATABASE_URL;
+		}
+	} catch (e) {
+		// Ignore: we are probably running in a CLI script outside SvelteKit
+	}
 
 	if (url) {
 		// --- Production / live: Neon serverless (HTTP) ---
