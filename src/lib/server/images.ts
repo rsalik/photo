@@ -1,7 +1,6 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
-import { DERIVED_DIR, ORIGINALS_DIR } from './db';
+import { putDerived, putOriginal } from './storage';
 import { IMAGE_SIZES } from '$lib/types';
 
 export interface ProcessedImage {
@@ -25,23 +24,21 @@ export async function processImage(buffer: Buffer, id: string, originalName: str
 	const height = swapped ? meta.width : meta.height;
 
 	const ext = (path.extname(originalName).slice(1) || meta.format || 'jpg').toLowerCase();
-	fs.writeFileSync(path.join(ORIGINALS_DIR, `${id}.${ext}`), buffer);
-
-	const dir = path.join(DERIVED_DIR, id);
-	fs.mkdirSync(dir, { recursive: true });
+	await putOriginal(id, ext, buffer);
 
 	await Promise.all(
 		Object.entries(IMAGE_SIZES).map(async ([name, edge]) => {
-			await img
+			const out = await img
 				.clone()
 				.resize(edge, edge, { fit: 'inside', withoutEnlargement: true })
 				.jpeg({ quality: name === 'sm' ? 78 : 84, mozjpeg: true })
-				.toFile(path.join(dir, `${name}.jpg`));
+				.toBuffer();
+			await putDerived(id, name, out);
 		})
 	);
 
 	// full-resolution JPEG for display (originals may be HEIC/TIFF/RAW-ish)
-	await img.clone().jpeg({ quality: 90, mozjpeg: true }).toFile(path.join(dir, 'full.jpg'));
+	await putDerived(id, 'full', await img.clone().jpeg({ quality: 90, mozjpeg: true }).toBuffer());
 
 	const blur = await img
 		.clone()
@@ -137,11 +134,4 @@ export async function detectTitleColor(buffer: Buffer): Promise<TitleColorResult
 		titleColor: pool[0].hex,
 		palette: pool.map((s) => s.hex)
 	};
-}
-
-/** Resolve the file path for a derived image size. */
-export function derivedPath(id: string, size: string): string | null {
-	if (!/^[a-z0-9-]+$/.test(id) || !/^(sm|md|lg|xl|full)$/.test(size)) return null;
-	const p = path.join(DERIVED_DIR, id, `${size}.jpg`);
-	return fs.existsSync(p) ? p : null;
 }

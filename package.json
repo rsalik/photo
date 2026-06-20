@@ -12,6 +12,7 @@
     "seed": "node scripts/seed.js",
     "migrate": "tsx scripts/migrate.ts",
     "push-to-neon": "tsx scripts/push-to-neon.ts",
+    "push-images": "tsx scripts/push-images.ts",
     "normalize-gear": "tsx scripts/normalize-gear.ts"
   },
   "devDependencies": {

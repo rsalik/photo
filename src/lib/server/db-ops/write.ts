@@ -1,6 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { bulk, DERIVED_DIR, ORIGINALS_DIR, query } from './connection';
+import { bulk, query } from './connection';
+import { deletePhotoAssets } from '../storage';
 
 export interface NewPhoto {
 	id: string;
@@ -178,17 +177,5 @@ export async function removeFromAlbum(photoId: string, album: string): Promise<v
 
 export async function deletePhoto(id: string): Promise<void> {
 	await query(`DELETE FROM photos WHERE id = $1`, [id]);
-	// Local-disk image cleanup. With R2 configured, the route handles object
-	// removal (see images.ts); on a read-only serverless FS this is a no-op.
-	if (process.env.R2_BUCKET) return;
-	try {
-		fs.rmSync(path.join(DERIVED_DIR, id), { recursive: true, force: true });
-		if (fs.existsSync(ORIGINALS_DIR)) {
-			for (const f of fs.readdirSync(ORIGINALS_DIR)) {
-				if (f.startsWith(`${id}.`)) fs.rmSync(path.join(ORIGINALS_DIR, f), { force: true });
-			}
-		}
-	} catch {
-		// best-effort; the DB row is already gone
-	}
+	await deletePhotoAssets(id); // R2 objects or local files, whichever is configured
 }
