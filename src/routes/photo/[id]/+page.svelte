@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { FAVORITE_TAG, IMAGE_SIZES, SCRIM_FACTORS } from '$lib/types';
+	import { cameraLabel } from '$lib/camera';
 	import { palette } from '$lib/palette-state.svelte';
 	import Icon, { type IconName } from '$lib/components/Icon.svelte';
 	import PreviewLink from '$lib/components/PreviewLink.svelte';
@@ -560,11 +561,7 @@
 
 	const isFavorited = $derived(photo.tags.some((t) => t.toLowerCase() === FAVORITE_TAG));
 
-	const camera = $derived(
-		photo.cameraModel && photo.cameraMake && !photo.cameraModel.startsWith(photo.cameraMake)
-			? `${photo.cameraMake} ${photo.cameraModel}`
-			: photo.cameraModel
-	);
+	const camera = $derived(cameraLabel(photo.cameraMake, photo.cameraModel) || null);
 
 	interface MetaItem {
 		icon: 'camera' | 'lens' | 'focal' | 'aperture' | 'shutter' | 'iso';

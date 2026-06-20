@@ -1,6 +1,32 @@
 import { query } from './connection';
 import { rowToPhoto, SELECT_PHOTO, type PhotoRow } from './row';
+import { cameraLabel } from '../../camera';
 import { FAVORITE_TAG, type GalleryFilters, type Photo } from '../../types';
+
+/** A distinct camera/lens/focal combination seen in the library, for the admin
+ *  EXIF autocomplete: which lenses go with which camera, and each lens's focal. */
+export interface GearProfile {
+	camera: string;
+	lens: string | null;
+	focal: string | null;
+}
+
+export async function getGearProfiles(): Promise<GearProfile[]> {
+	const rows = await query<{
+		camera_make: string | null;
+		camera_model: string | null;
+		lens: string | null;
+		focal_length: string | null;
+	}>(
+		`SELECT DISTINCT camera_make, camera_model, lens, focal_length FROM photos
+		 WHERE camera_model IS NOT NULL OR lens IS NOT NULL`
+	);
+	return rows.map((r) => ({
+		camera: cameraLabel(r.camera_make, r.camera_model),
+		lens: r.lens,
+		focal: r.focal_length
+	}));
+}
 
 export async function getPhoto(id: string): Promise<Photo | null> {
 	const rows = await query<PhotoRow>(`${SELECT_PHOTO} WHERE p.id = $1`, [id]);

@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import sharp from 'sharp';
 import type { ExifData } from '$lib/types';
+import { normalizeGear } from '$lib/camera';
 
 const execFileAsync = promisify(execFile);
 
@@ -68,8 +69,8 @@ export async function extractExif(filePath: string): Promise<ExifData> {
 			]);
 			const d = JSON.parse(stdout)[0] ?? {};
 			return {
-				cameraMake: d.Make?.toString().trim() || null,
-				cameraModel: d.Model?.toString().trim() || null,
+				cameraMake: normalizeGear(d.Make?.toString().trim() || null),
+				cameraModel: normalizeGear(d.Model?.toString().trim() || null),
 				lens: (d.LensModel ?? d.LensID)?.toString().trim() || null,
 				aperture: d.FNumber ? `f/${+(+d.FNumber).toFixed(1)}` : null,
 				shutterSpeed: formatShutter(d.ExposureTime),

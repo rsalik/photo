@@ -4,6 +4,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { fly, slide } from 'svelte/transition';
 	import { FAVORITE_TAG, TITLE_COLOR_PRESETS, type Photo } from '$lib/types';
+	import { cameraLabel } from '$lib/camera';
 	import Icon from '$lib/components/Icon.svelte';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import CommandPalette, { type PaletteAction } from '$lib/components/CommandPalette.svelte';
@@ -115,7 +116,7 @@
 			// prefill from the first selected photo so shared values carry over
 			const f = selectedPhotos[0];
 			exifForm = {
-				cameraModel: f?.cameraModel ?? '',
+				cameraModel: cameraLabel(f?.cameraMake, f?.cameraModel),
 				lens: f?.lens ?? '',
 				focalLength: f?.focalLength ?? '',
 				aperture: f?.aperture ?? '',
@@ -131,6 +132,7 @@
 		await bulkOp('setExif', [], null, {
 			exif: {
 				cameraModel: exifForm.cameraModel.trim() || null,
+				cameraMake: null,
 				lens: exifForm.lens.trim() || null,
 				focalLength: exifForm.focalLength.trim() || null,
 				aperture: exifForm.aperture.trim() || null,
@@ -342,6 +344,45 @@
 		}
 	});
 
+	/* -------------------- EXIF autocomplete (camera → lenses → focal) -------------------- */
+	const gear = $derived(data.gear ?? []);
+	const cameraOptions = $derived([...new Set(gear.map((g) => g.camera).filter(Boolean))].sort());
+	const cameraToLenses = $derived.by(() => {
+		const m = new Map<string, string[]>();
+		for (const g of gear) {
+			if (!g.camera || !g.lens) continue;
+			const k = g.camera.toLowerCase();
+			const arr = m.get(k) ?? [];
+			if (!arr.some((l) => l.toLowerCase() === g.lens!.toLowerCase())) arr.push(g.lens);
+			m.set(k, arr);
+		}
+		return m;
+	});
+	const lensToFocal = $derived.by(() => {
+		const m = new Map<string, string>();
+		for (const g of gear) {
+			if (g.lens && g.focal && !m.has(g.lens.toLowerCase())) m.set(g.lens.toLowerCase(), g.focal);
+		}
+		return m;
+	});
+	const lensesFor = (camera: string) =>
+		cameraToLenses.get(camera.trim().toLowerCase()) ?? data.options.lenses;
+	const editLensOptions = $derived(lensesFor(edit.cameraModel));
+	const bulkLensOptions = $derived(lensesFor(exifForm.cameraModel));
+
+	// picking a camera that has exactly one known lens fills the lens (and its focal)
+	function cameraAutofill(form: { cameraModel: string; lens: string; focalLength: string }) {
+		const lenses = cameraToLenses.get(form.cameraModel.trim().toLowerCase());
+		if (lenses && lenses.length === 1 && !form.lens.trim()) {
+			form.lens = lenses[0];
+			lensAutofill(form);
+		}
+	}
+	function lensAutofill(form: { lens: string; focalLength: string }) {
+		const f = lensToFocal.get(form.lens.trim().toLowerCase());
+		if (f && !form.focalLength.trim()) form.focalLength = f;
+	}
+
 	function openEditor(photo: Photo) {
 		editing = photo;
 		edit = {
@@ -352,7 +393,9 @@
 			albums: [...photo.albums],
 			titleColor: photo.titleColor.toLowerCase(),
 			takenAt: photo.takenAt?.slice(0, 10) ?? '',
-			cameraModel: photo.cameraModel ?? '',
+			// the Camera field edits the full make+model display string; on save it's
+			// stored in cameraModel with cameraMake cleared (see editPayload)
+			cameraModel: cameraLabel(photo.cameraMake, photo.cameraModel),
 			lens: photo.lens ?? '',
 			focalLength: photo.focalLength ?? '',
 			aperture: photo.aperture ?? '',
@@ -378,7 +421,10 @@
 			location: edit.location || null,
 			titleColor: edit.titleColor,
 			takenAt: edit.takenAt ? `${edit.takenAt}T12:00:00` : null,
+			// fold the whole camera name into the model and clear make, so the
+			// displayed string is exactly what was typed (fixes stale make prefixes)
 			cameraModel: edit.cameraModel || null,
+			cameraMake: null,
 			lens: edit.lens || null,
 			focalLength: edit.focalLength || null,
 			aperture: edit.aperture || null,
@@ -683,10 +729,25 @@
 							<span class="type-label text-ink-soft"
 								>Camera &amp; exposure for {selected.size} photo{selected.size > 1 ? 's' : ''}</span
 							>
-							<input bind:value={exifForm.cameraModel} placeholder="Camera — Canon EOS R6" class="field mt-2 text-sm" />
-							<input bind:value={exifForm.lens} placeholder="Lens — RF 35mm F1.8" class="field mt-2 text-sm" />
+							<input
+								bind:value={exifForm.cameraModel}
+								oninput={() => cameraAutofill(exifForm)}
+								list="cam-list"
+								placeholder="Camera — Canon EOS R6"
+								class="field mt-2 text-sm"
+							/>
+							<input
+								bind:value={exifForm.lens}
+								oninput={() => lensAutofill(exifForm)}
+								list="bulk-lens-list"
+								placeholder="Lens — RF 35mm F1.8"
+								class="field mt-2 text-sm"
+							/>
+							<datalist id="bulk-lens-list">
+								{#each bulkLensOptions as l (l)}<option value={l}></option>{/each}
+							</datalist>
 							<div class="mt-2 grid grid-cols-2 gap-2">
-								<input bind:value={exifForm.focalLength} placeholder="Focal — 35mm" class="field text-sm" />
+								<input bind:value={exifForm.focalLength} list="focal-list" placeholder="Focal — 35mm" class="field text-sm" />
 								<input bind:value={exifForm.aperture} placeholder="Aperture — f/2.8" class="field text-sm" />
 								<input bind:value={exifForm.shutterSpeed} placeholder="Shutter — 1/250s" class="field text-sm" />
 								<input bind:value={exifForm.iso} inputmode="numeric" placeholder="ISO — 400" class="field text-sm" />
@@ -739,7 +800,7 @@
 		<button type="button" class="flex-1" aria-label="Close editor" onclick={closeEditor}></button>
 		<div
 			transition:fly={{ x: 24, duration: 200 }}
-			class="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-hairline bg-paper px-6 py-5"
+			class="flex h-full w-full max-w-md flex-col overflow-x-clip overflow-y-auto border-l border-hairline bg-paper px-6 py-5"
 		>
 			<div class="mb-4 flex items-center justify-between">
 				<div class="flex items-baseline gap-3">
@@ -826,15 +887,30 @@
 					<div class="grid grid-cols-2 gap-3 pt-1 pb-2">
 						<label class="col-span-2 flex flex-col gap-1">
 							<span class="type-label text-ink-soft">Camera</span>
-							<input bind:value={edit.cameraModel} placeholder="Canon EOS R6" class="field" />
+							<input
+								bind:value={edit.cameraModel}
+								oninput={() => cameraAutofill(edit)}
+								list="cam-list"
+								placeholder="Canon EOS R6"
+								class="field"
+							/>
 						</label>
 						<label class="col-span-2 flex flex-col gap-1">
 							<span class="type-label text-ink-soft">Lens</span>
-							<input bind:value={edit.lens} placeholder="RF 35mm F1.8" class="field" />
+							<input
+								bind:value={edit.lens}
+								oninput={() => lensAutofill(edit)}
+								list="edit-lens-list"
+								placeholder="RF 35mm F1.8"
+								class="field"
+							/>
 						</label>
+						<datalist id="edit-lens-list">
+							{#each editLensOptions as l (l)}<option value={l}></option>{/each}
+						</datalist>
 						<label class="flex flex-col gap-1">
 							<span class="type-label text-ink-soft">Focal length</span>
-							<input bind:value={edit.focalLength} placeholder="35mm" class="field" />
+							<input bind:value={edit.focalLength} list="focal-list" placeholder="35mm" class="field" />
 						</label>
 						<label class="flex flex-col gap-1">
 							<span class="type-label text-ink-soft">Aperture</span>
@@ -920,6 +996,12 @@
 
 <datalist id="locations">
 	{#each data.options.locations as location (location)}<option value={location}></option>{/each}
+</datalist>
+<datalist id="cam-list">
+	{#each cameraOptions as cam (cam)}<option value={cam}></option>{/each}
+</datalist>
+<datalist id="focal-list">
+	{#each [...new Set(gear.map((g) => g.focal).filter(Boolean))] as f (f)}<option value={f}></option>{/each}
 </datalist>
 <datalist id="tags-all">
 	{#each data.options.tags as tag (tag)}<option value={tag}></option>{/each}

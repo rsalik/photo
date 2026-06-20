@@ -35,6 +35,7 @@ interface BulkBody {
 	filmFormat?: string | null;
 	/** for setExif — only the keys present are written across the selection */
 	exif?: {
+		cameraMake?: string | null;
 		cameraModel?: string | null;
 		lens?: string | null;
 		focalLength?: string | null;
@@ -92,6 +93,7 @@ export const POST: RequestHandler = async ({ request }) => {
 						const norm = (v: string | null | undefined) =>
 							v === undefined ? undefined : v?.trim() || null;
 						await updatePhoto(id, {
+							...(e.cameraMake !== undefined && { cameraMake: norm(e.cameraMake) }),
 							...(e.cameraModel !== undefined && { cameraModel: norm(e.cameraModel) }),
 							...(e.lens !== undefined && { lens: norm(e.lens) }),
 							...(e.focalLength !== undefined && { focalLength: norm(e.focalLength) }),

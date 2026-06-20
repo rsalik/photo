@@ -10,7 +10,8 @@
     "start": "node build",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "seed": "node scripts/seed.js",
-    "migrate": "tsx scripts/migrate.ts"
+    "migrate": "tsx scripts/migrate.ts",
+    "normalize-gear": "tsx scripts/normalize-gear.ts"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.5.4",

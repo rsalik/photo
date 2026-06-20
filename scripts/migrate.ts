@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { query } from '../src/lib/server/db-ops/connection';
+import { normalizeGear } from '../src/lib/camera';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SQLITE = process.env.SQLITE_PATH ?? path.join(root, 'data', 'photos.db');
@@ -47,7 +48,11 @@ async function main() {
 		const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
 		await query(
 			`INSERT INTO photos (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO NOTHING`,
-			cols.map((c) => p[c] ?? null)
+			cols.map((c) => {
+				const v = p[c] ?? null;
+				// normalize quirky gear strings on the way in (e.g. R5m2 → R5 Mark II)
+				return c === 'camera_make' || c === 'camera_model' ? normalizeGear(v as string | null) : v;
+			})
 		);
 	}
 

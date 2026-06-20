@@ -1,7 +1,11 @@
 import type { PageServerLoad } from './$types';
-import { getFilterOptions, listPhotos } from '$lib/server/db';
+import { getFilterOptions, getGearProfiles, listPhotos } from '$lib/server/db';
 
 export const load: PageServerLoad = async () => {
-	const [photos, options] = await Promise.all([listPhotos(), getFilterOptions()]);
-	return { photos, options };
+	const [photos, options, gear] = await Promise.all([
+		listPhotos(),
+		getFilterOptions(),
+		getGearProfiles()
+	]);
+	return { photos, options, gear };
 };
