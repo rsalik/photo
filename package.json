@@ -11,6 +11,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "seed": "node scripts/seed.js",
     "migrate": "tsx scripts/migrate.ts",
+    "push-to-neon": "tsx scripts/push-to-neon.ts",
     "normalize-gear": "tsx scripts/normalize-gear.ts"
   },
   "devDependencies": {
