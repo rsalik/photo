@@ -3,8 +3,8 @@ import type { PageServerLoad } from './$types';
 import { filteredNeighbors, getPhoto, similarPhotos } from '$lib/server/db';
 import { FILTER_KEYS, type GalleryFilters } from '$lib/types';
 
-export const load: PageServerLoad = ({ params, url }) => {
-	const photo = getPhoto(params.id);
+export const load: PageServerLoad = async ({ params, url }) => {
+	const photo = await getPhoto(params.id);
 	if (!photo) error(404, 'Photo not found');
 
 	// Gallery navigation: when arriving from the gallery (marked by `g`), reconstruct
@@ -19,8 +19,8 @@ export const load: PageServerLoad = ({ params, url }) => {
 		if (value) filters[key] = value;
 	}
 
-	const nav = fromGallery ? filteredNeighbors(filters, photo.id) : null;
-	const similar = nav ? [] : similarPhotos(photo, 6);
+	const nav = fromGallery ? await filteredNeighbors(filters, photo.id) : null;
+	const similar = nav ? [] : await similarPhotos(photo, 6);
 
 	return { photo, filters, nav, similar };
 };

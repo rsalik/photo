@@ -25,10 +25,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	// titles are forced unique; collisions get a numeric suffix
 	const requested = String(form.get('title') ?? '').trim() || titleFromFilename(file.name);
 	let title = requested;
-	for (let n = 2; titleExists(title); n++) title = `${requested} ${n}`;
+	for (let n = 2; await titleExists(title); n++) title = `${requested} ${n}`;
 	const base = slugify(title);
 	let id = base;
-	for (let n = 2; idExists(id); n++) id = `${base}-${n}`;
+	for (let n = 2; await idExists(id); n++) id = `${base}-${n}`;
 
 	// exiftool reads from disk, so stage the upload in a temp file
 	const tmp = path.join(
@@ -44,7 +44,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		]);
 
 		const lastModified = Number(form.get('lastModified'));
-		insertPhoto({
+		await insertPhoto({
 			id,
 			title,
 			description: String(form.get('description') ?? '').trim() || null,
@@ -73,5 +73,5 @@ export const POST: RequestHandler = async ({ request }) => {
 		fs.rmSync(tmp, { force: true });
 	}
 
-	return json(getPhoto(id), { status: 201 });
+	return json(await getPhoto(id), { status: 201 });
 };

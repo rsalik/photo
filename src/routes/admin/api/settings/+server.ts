@@ -34,6 +34,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		patch.scrimMode = body.scrimMode;
 	}
 
-	saveSettings(patch);
-	return json(getSettings());
+	await saveSettings(patch);
+	return json(await getSettings());
 };

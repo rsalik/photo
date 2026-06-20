@@ -59,9 +59,9 @@ export function rowToPhoto(row: PhotoRow): Photo {
 
 export const SELECT_PHOTO = `
 	SELECT p.*,
-		(SELECT group_concat(t.name, char(1)) FROM photo_tags pt JOIN tags t ON t.id = pt.tag_id
-			WHERE pt.photo_id = p.id ORDER BY t.name) AS tags,
-		(SELECT group_concat(a.name, char(1)) FROM photo_albums pa JOIN albums a ON a.id = pa.album_id
-			WHERE pa.photo_id = p.id ORDER BY a.name) AS albums
+		(SELECT string_agg(t.name, chr(1) ORDER BY t.name) FROM photo_tags pt JOIN tags t ON t.id = pt.tag_id
+			WHERE pt.photo_id = p.id) AS tags,
+		(SELECT string_agg(a.name, chr(1) ORDER BY a.name) FROM photo_albums pa JOIN albums a ON a.id = pa.album_id
+			WHERE pa.photo_id = p.id) AS albums
 	FROM photos p
 `;

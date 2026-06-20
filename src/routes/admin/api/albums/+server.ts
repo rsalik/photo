@@ -11,6 +11,6 @@ interface OrderBody {
 export const POST: RequestHandler = async ({ request }) => {
 	const body = (await request.json()) as OrderBody;
 	if (!body.album || !Array.isArray(body.photoIds)) error(400, 'album and photoIds required');
-	setAlbumOrder(body.album, body.photoIds);
+	await setAlbumOrder(body.album, body.photoIds);
 	return json({ ok: true, count: body.photoIds.length });
 };

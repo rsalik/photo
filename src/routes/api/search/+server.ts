@@ -22,7 +22,7 @@ const shape = (photos: Photo[]) =>
  * present, context facets are filtered by it too, so a contextual match ("Europe"
  * on a Europe-tagged photo) outranks an unrelated global one ("Eclipse").
  */
-export const GET: RequestHandler = ({ url, setHeaders }) => {
+export const GET: RequestHandler = async ({ url, setHeaders }) => {
   const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
   const contextId = url.searchParams.get('photo');
   setHeaders({ 'Cache-Control': 'private, max-age=15' });
@@ -33,7 +33,7 @@ export const GET: RequestHandler = ({ url, setHeaders }) => {
   let context: { albums: string[]; tags: string[]; cameras: string[]; locations: string[]; favorite: boolean } | null =
     null;
   if (contextId) {
-    const photo = getPhoto(contextId);
+    const photo = await getPhoto(contextId);
     if (photo) {
       context = {
         albums: photo.albums.filter(matches),
@@ -45,12 +45,12 @@ export const GET: RequestHandler = ({ url, setHeaders }) => {
     }
   }
 
-  const options = getFilterOptions();
+  const options = await getFilterOptions();
   const match = (names: string[]) => names.filter(matches).slice(0, 6);
 
   return json({
     context,
-    photos: shape((q ? listPhotos({ q }) : listPhotos()).slice(0, 6)),
+    photos: shape((q ? await listPhotos({ q }) : await listPhotos()).slice(0, 6)),
     albums: match(options.albums),
     tags: match(options.tags),
     cameras: match(options.cameras),

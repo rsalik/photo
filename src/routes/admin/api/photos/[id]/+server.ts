@@ -33,14 +33,14 @@ interface PatchBody {
 }
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
-  const photo = getPhoto(params.id);
+  const photo = await getPhoto(params.id);
   if (!photo) error(404, 'Photo not found');
   const body = (await request.json()) as PatchBody;
 
   if (body.title !== undefined) {
     const title = body.title.trim();
     if (!title) error(400, 'Title cannot be empty');
-    if (title.toLowerCase() !== photo.title.toLowerCase() && titleExists(title)) {
+    if (title.toLowerCase() !== photo.title.toLowerCase() && (await titleExists(title))) {
       error(409, `A photo titled “${title}” already exists`);
     }
   }
@@ -48,8 +48,8 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     error(400, 'Title color must be a hex value like #ffffff');
   }
 
-  const run = bulk(() => {
-    updatePhoto(params.id, {
+  await bulk(async () => {
+    await updatePhoto(params.id, {
       ...(body.title !== undefined && { title: body.title.trim() }),
       ...(body.description !== undefined && { description: body.description?.trim() || null }),
       ...(body.location !== undefined && { location: body.location?.trim() || null }),
@@ -69,16 +69,15 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     });
     if (body.tags) {
       const next = new Set(body.tags.map((t) => t.trim().toLowerCase()).filter(Boolean));
-      for (const tag of photo.tags) if (!next.has(tag.toLowerCase())) removeTag(params.id, tag);
-      for (const tag of body.tags) addTag(params.id, tag);
+      for (const tag of photo.tags) if (!next.has(tag.toLowerCase())) await removeTag(params.id, tag);
+      for (const tag of body.tags) await addTag(params.id, tag);
     }
     if (body.albums) {
       const next = new Set(body.albums.map((a) => a.trim().toLowerCase()).filter(Boolean));
-      for (const album of photo.albums) if (!next.has(album.toLowerCase())) removeFromAlbum(params.id, album);
-      for (const album of body.albums) addToAlbum(params.id, album);
+      for (const album of photo.albums) if (!next.has(album.toLowerCase())) await removeFromAlbum(params.id, album);
+      for (const album of body.albums) await addToAlbum(params.id, album);
     }
   });
-  run();
 
-  return json(getPhoto(params.id));
+  return json(await getPhoto(params.id));
 };

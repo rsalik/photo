@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, DERIVED_DIR, ORIGINALS_DIR } from './connection';
+import { bulk, DERIVED_DIR, ORIGINALS_DIR, query } from './connection';
 
 export interface NewPhoto {
 	id: string;
@@ -29,48 +29,55 @@ export interface NewPhoto {
 	albums?: string[];
 }
 
-export function insertPhoto(p: NewPhoto): void {
-	const insert = db.transaction(() => {
-		db.prepare(`
-			INSERT INTO photos (
+export async function insertPhoto(p: NewPhoto): Promise<void> {
+	await bulk(async () => {
+		await query(
+			`INSERT INTO photos (
 				id, title, description, location, width, height, title_color,
 				palette, blur_data, original_ext, camera_make, camera_model, lens, aperture,
 				shutter_speed, focal_length, iso, taken_at, analog, film_stock, film_iso, film_format
 			) VALUES (
-				@id, @title, @description, @location, @width, @height, @titleColor,
-				@palette, @blurData, @originalExt, @cameraMake, @cameraModel, @lens, @aperture,
-				@shutterSpeed, @focalLength, @iso, @takenAt, @analog, @filmStock, @filmIso, @filmFormat
-			)
-		`).run({
-			...p,
-			description: p.description ?? null,
-			location: p.location ?? null,
-			cameraMake: p.cameraMake ?? null,
-			cameraModel: p.cameraModel ?? null,
-			lens: p.lens ?? null,
-			aperture: p.aperture ?? null,
-			shutterSpeed: p.shutterSpeed ?? null,
-			focalLength: p.focalLength ?? null,
-			iso: p.iso ?? null,
-			takenAt: p.takenAt ?? null,
-			analog: p.analog ? 1 : 0,
-			filmStock: p.filmStock ?? null,
-			filmIso: p.filmIso ?? null,
-			filmFormat: p.filmFormat ?? null,
-			palette: JSON.stringify(p.palette)
-		});
-		for (const tag of p.tags ?? []) addTag(p.id, tag);
-		for (const album of p.albums ?? []) addToAlbum(p.id, album);
+				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+				$15, $16, $17, $18, $19, $20, $21, $22
+			)`,
+			[
+				p.id,
+				p.title,
+				p.description ?? null,
+				p.location ?? null,
+				p.width,
+				p.height,
+				p.titleColor,
+				JSON.stringify(p.palette),
+				p.blurData,
+				p.originalExt,
+				p.cameraMake ?? null,
+				p.cameraModel ?? null,
+				p.lens ?? null,
+				p.aperture ?? null,
+				p.shutterSpeed ?? null,
+				p.focalLength ?? null,
+				p.iso ?? null,
+				p.takenAt ?? null,
+				p.analog ? 1 : 0,
+				p.filmStock ?? null,
+				p.filmIso ?? null,
+				p.filmFormat ?? null
+			]
+		);
+		for (const tag of p.tags ?? []) await addTag(p.id, tag);
+		for (const album of p.albums ?? []) await addToAlbum(p.id, album);
 	});
-	insert();
 }
 
-export function titleExists(title: string): boolean {
-	return !!db.prepare(`SELECT 1 FROM photos WHERE title = ? COLLATE NOCASE`).get(title);
+export async function titleExists(title: string): Promise<boolean> {
+	const rows = await query(`SELECT 1 FROM photos WHERE lower(title) = lower($1)`, [title]);
+	return rows.length > 0;
 }
 
-export function idExists(id: string): boolean {
-	return !!db.prepare(`SELECT 1 FROM photos WHERE id = ?`).get(id);
+export async function idExists(id: string): Promise<boolean> {
+	const rows = await query(`SELECT 1 FROM photos WHERE id = $1`, [id]);
+	return rows.length > 0;
 }
 
 const UPDATABLE = {
@@ -95,76 +102,93 @@ export interface PhotoUpdate extends Partial<Record<keyof typeof UPDATABLE, stri
 	iso?: number | null;
 }
 
-export function updatePhoto(id: string, fields: PhotoUpdate): void {
+export async function updatePhoto(id: string, fields: PhotoUpdate): Promise<void> {
 	const sets: string[] = [];
-	const params: Record<string, string | number | null> = { id };
+	const params: unknown[] = [];
+	const ph = (v: unknown) => {
+		params.push(v);
+		return `$${params.length}`;
+	};
 	for (const [key, col] of Object.entries(UPDATABLE)) {
-		if (key in fields) {
-			sets.push(`${col} = @${key}`);
-			params[key] = fields[key as keyof typeof UPDATABLE] ?? null;
-		}
+		if (key in fields) sets.push(`${col} = ${ph(fields[key as keyof typeof UPDATABLE] ?? null)}`);
 	}
-	if (fields.analog !== undefined) {
-		sets.push(`analog = @analog`);
-		params.analog = fields.analog ? 1 : 0;
-	}
-	if (sets.length) {
-		db.prepare(`UPDATE photos SET ${sets.join(', ')} WHERE id = @id`).run(params);
-	}
+	if (fields.analog !== undefined) sets.push(`analog = ${ph(fields.analog ? 1 : 0)}`);
+	if (fields.iso !== undefined) sets.push(`iso = ${ph(fields.iso ?? null)}`);
+	if (!sets.length) return;
+	await query(`UPDATE photos SET ${sets.join(', ')} WHERE id = ${ph(id)}`, params);
 }
 
-export function addTag(photoId: string, tag: string): void {
+export async function addTag(photoId: string, tag: string): Promise<void> {
 	const name = tag.trim();
 	if (!name) return;
-	db.prepare(`INSERT OR IGNORE INTO tags (name) VALUES (?)`).run(name);
-	db.prepare(`
-		INSERT OR IGNORE INTO photo_tags (photo_id, tag_id)
-		SELECT ?, id FROM tags WHERE name = ? COLLATE NOCASE
-	`).run(photoId, name);
+	await query(`INSERT INTO tags (name) VALUES ($1) ON CONFLICT (lower(name)) DO NOTHING`, [name]);
+	await query(
+		`INSERT INTO photo_tags (photo_id, tag_id)
+		 SELECT $1, id FROM tags WHERE lower(name) = lower($2)
+		 ON CONFLICT DO NOTHING`,
+		[photoId, name]
+	);
 }
 
-export function removeTag(photoId: string, tag: string): void {
-	db.prepare(`
-		DELETE FROM photo_tags WHERE photo_id = ? AND tag_id IN
-		(SELECT id FROM tags WHERE name = ? COLLATE NOCASE)
-	`).run(photoId, tag.trim());
+export async function removeTag(photoId: string, tag: string): Promise<void> {
+	await query(
+		`DELETE FROM photo_tags WHERE photo_id = $1 AND tag_id IN
+		 (SELECT id FROM tags WHERE lower(name) = lower($2))`,
+		[photoId, tag.trim()]
+	);
 }
 
-export function addToAlbum(photoId: string, album: string): void {
+export async function addToAlbum(photoId: string, album: string): Promise<void> {
 	const name = album.trim();
 	if (!name) return;
-	db.prepare(`INSERT OR IGNORE INTO albums (name) VALUES (?)`).run(name);
-	db.prepare(`
-		INSERT OR IGNORE INTO photo_albums (photo_id, album_id, position)
-		SELECT ?, a.id,
+	await query(`INSERT INTO albums (name) VALUES ($1) ON CONFLICT (lower(name)) DO NOTHING`, [name]);
+	await query(
+		`INSERT INTO photo_albums (photo_id, album_id, position)
+		 SELECT $1, a.id,
 			(SELECT coalesce(max(pa.position), -1) + 1 FROM photo_albums pa WHERE pa.album_id = a.id)
-		FROM albums a WHERE a.name = ? COLLATE NOCASE
-	`).run(photoId, name);
+		 FROM albums a WHERE lower(a.name) = lower($2)
+		 ON CONFLICT DO NOTHING`,
+		[photoId, name]
+	);
 }
 
-export function setAlbumOrder(album: string, photoIds: string[]): void {
-	const albumId = (db.prepare(`SELECT id FROM albums WHERE name = ? COLLATE NOCASE`).get(album) as { id: number } | undefined)?.id;
+export async function setAlbumOrder(album: string, photoIds: string[]): Promise<void> {
+	const row = await query<{ id: number }>(`SELECT id FROM albums WHERE lower(name) = lower($1)`, [
+		album
+	]);
+	const albumId = row[0]?.id;
 	if (!albumId) return;
-	const stmt = db.prepare(`UPDATE photo_albums SET position = @pos WHERE album_id = @albumId AND photo_id = @photoId`);
-	const tx = db.transaction(() => {
-		photoIds.forEach((photoId, pos) => stmt.run({ pos, albumId, photoId }));
-	});
-	tx();
-}
-
-export function removeFromAlbum(photoId: string, album: string): void {
-	db.prepare(`
-		DELETE FROM photo_albums WHERE photo_id = ? AND album_id IN
-		(SELECT id FROM albums WHERE name = ? COLLATE NOCASE)
-	`).run(photoId, album.trim());
-}
-
-export function deletePhoto(id: string): void {
-	db.prepare(`DELETE FROM photos WHERE id = ?`).run(id);
-	fs.rmSync(path.join(DERIVED_DIR, id), { recursive: true, force: true });
-	for (const f of fs.readdirSync(ORIGINALS_DIR)) {
-		if (f.startsWith(`${id}.`)) {
-			fs.rmSync(path.join(ORIGINALS_DIR, f), { force: true });
+	await bulk(async () => {
+		for (let pos = 0; pos < photoIds.length; pos++) {
+			await query(
+				`UPDATE photo_albums SET position = $1 WHERE album_id = $2 AND photo_id = $3`,
+				[pos, albumId, photoIds[pos]]
+			);
 		}
+	});
+}
+
+export async function removeFromAlbum(photoId: string, album: string): Promise<void> {
+	await query(
+		`DELETE FROM photo_albums WHERE photo_id = $1 AND album_id IN
+		 (SELECT id FROM albums WHERE lower(name) = lower($2))`,
+		[photoId, album.trim()]
+	);
+}
+
+export async function deletePhoto(id: string): Promise<void> {
+	await query(`DELETE FROM photos WHERE id = $1`, [id]);
+	// Local-disk image cleanup. With R2 configured, the route handles object
+	// removal (see images.ts); on a read-only serverless FS this is a no-op.
+	if (process.env.R2_BUCKET) return;
+	try {
+		fs.rmSync(path.join(DERIVED_DIR, id), { recursive: true, force: true });
+		if (fs.existsSync(ORIGINALS_DIR)) {
+			for (const f of fs.readdirSync(ORIGINALS_DIR)) {
+				if (f.startsWith(`${id}.`)) fs.rmSync(path.join(ORIGINALS_DIR, f), { force: true });
+			}
+		}
+	} catch {
+		// best-effort; the DB row is already gone
 	}
 }

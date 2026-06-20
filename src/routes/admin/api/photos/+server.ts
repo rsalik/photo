@@ -51,27 +51,27 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!OPS.includes(body.op)) error(400, 'Unknown operation');
 	const values = (body.values ?? []).map((v) => String(v).trim()).filter(Boolean);
 
-	const run = bulk(() => {
+	await bulk(async () => {
 		for (const id of body.ids) {
 			switch (body.op) {
 				case 'addTags':
-					for (const v of values) addTag(id, v);
+					for (const v of values) await addTag(id, v);
 					break;
 				case 'removeTags':
-					for (const v of values) removeTag(id, v);
+					for (const v of values) await removeTag(id, v);
 					break;
 				case 'addAlbums':
-					for (const v of values) addToAlbum(id, v);
+					for (const v of values) await addToAlbum(id, v);
 					break;
 				case 'removeAlbums':
-					for (const v of values) removeFromAlbum(id, v);
+					for (const v of values) await removeFromAlbum(id, v);
 					break;
 				case 'setLocation':
-					updatePhoto(id, { location: body.value?.trim() || null });
+					await updatePhoto(id, { location: body.value?.trim() || null });
 					break;
 				case 'setAnalog':
 					// turning analog off also clears the film fields
-					updatePhoto(
+					await updatePhoto(
 						id,
 						body.analog
 							? { analog: true }
@@ -79,7 +79,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					);
 					break;
 				case 'setFilm':
-					updatePhoto(id, {
+					await updatePhoto(id, {
 						analog: true,
 						filmStock: body.filmStock?.trim() || null,
 						filmIso: body.filmIso?.trim() || null,
@@ -91,7 +91,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					if (e) {
 						const norm = (v: string | null | undefined) =>
 							v === undefined ? undefined : v?.trim() || null;
-						updatePhoto(id, {
+						await updatePhoto(id, {
 							...(e.cameraModel !== undefined && { cameraModel: norm(e.cameraModel) }),
 							...(e.lens !== undefined && { lens: norm(e.lens) }),
 							...(e.focalLength !== undefined && { focalLength: norm(e.focalLength) }),
@@ -103,12 +103,11 @@ export const POST: RequestHandler = async ({ request }) => {
 					break;
 				}
 				case 'delete':
-					deletePhoto(id);
+					await deletePhoto(id);
 					break;
 			}
 		}
 	});
-	run();
 
 	return json({ ok: true, count: body.ids.length });
 };

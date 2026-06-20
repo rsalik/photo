@@ -1,21 +1,18 @@
-import { db } from './connection';
+import { query } from './connection';
 import { DEFAULT_SETTINGS, type SiteSettings } from '../../types';
 
-export function getSettings(): SiteSettings {
-	const rows = db.prepare(`SELECT key, value FROM settings`).all() as { key: string; value: string }[];
+export async function getSettings(): Promise<SiteSettings> {
+	const rows = await query<{ key: string; value: string }>(`SELECT key, value FROM settings`);
 	const stored = Object.fromEntries(rows.map((r) => [r.key, JSON.parse(r.value)]));
 	return { ...DEFAULT_SETTINGS, ...stored };
 }
 
-export function saveSettings(patch: Partial<SiteSettings>): void {
-	const stmt = db.prepare(`
-		INSERT INTO settings (key, value) VALUES (?, ?)
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`);
-	const tx = db.transaction(() => {
-		for (const [key, value] of Object.entries(patch)) {
-			stmt.run(key, JSON.stringify(value));
-		}
-	});
-	tx();
+export async function saveSettings(patch: Partial<SiteSettings>): Promise<void> {
+	for (const [key, value] of Object.entries(patch)) {
+		await query(
+			`INSERT INTO settings (key, value) VALUES ($1, $2)
+			 ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+			[key, JSON.stringify(value)]
+		);
+	}
 }
