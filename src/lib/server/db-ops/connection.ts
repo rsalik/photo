@@ -14,7 +14,9 @@ import { createSchema } from './schema';
  * runs identically in either place.
  */
 
-export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? 'data');
+const safeProcessEnv = typeof process !== 'undefined' ? process.env : {};
+
+export const DATA_DIR = path.resolve(safeProcessEnv.DATA_DIR ?? 'data');
 export const ORIGINALS_DIR = path.join(DATA_DIR, 'originals');
 export const DERIVED_DIR = path.join(DATA_DIR, 'derived');
 
@@ -36,7 +38,8 @@ interface Backend {
 let ready: Promise<Backend> | null = null;
 
 async function initBackend(): Promise<Backend> {
-	let url = process.env.DATABASE_URL;
+	const safeProcessEnv = typeof process !== 'undefined' ? process.env : {};
+	let url = safeProcessEnv.DATABASE_URL;
 	try {
 		// @ts-ignore
 		const svelteEnv = await import('$env/dynamic/private');

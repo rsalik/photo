@@ -17,11 +17,13 @@ import { IMAGE_SIZES } from '$lib/types';
 
 import { env } from '$env/dynamic/private';
 
-const bucket = env.R2_BUCKET || process.env.R2_BUCKET;
-const accountId = env.R2_ACCOUNT_ID || process.env.R2_ACCOUNT_ID;
-const accessKeyId = env.R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID;
-const secretAccessKey = env.R2_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY;
-const publicBase = (env.R2_PUBLIC_URL || process.env.R2_PUBLIC_URL)?.replace(/\/+$/, '') || null;
+const safeProcessEnv = typeof process !== 'undefined' ? process.env : {};
+
+const bucket = env.R2_BUCKET || safeProcessEnv.R2_BUCKET;
+const accountId = env.R2_ACCOUNT_ID || safeProcessEnv.R2_ACCOUNT_ID;
+const accessKeyId = env.R2_ACCESS_KEY_ID || safeProcessEnv.R2_ACCESS_KEY_ID;
+const secretAccessKey = env.R2_SECRET_ACCESS_KEY || safeProcessEnv.R2_SECRET_ACCESS_KEY;
+const publicBase = (env.R2_PUBLIC_URL || safeProcessEnv.R2_PUBLIC_URL)?.replace(/\/+$/, '') || null;
 
 export const usingR2 = !!(bucket && accountId && accessKeyId && secretAccessKey);
 

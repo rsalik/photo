@@ -24,10 +24,16 @@ function sessionSecret(): string {
 	}
 }
 
-const SECRET = sessionSecret();
+let _secret: string | null = null;
+function getSecret(): string {
+	if (!_secret) {
+		_secret = sessionSecret();
+	}
+	return _secret;
+}
 
 function sign(payload: string): string {
-	return crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
+	return crypto.createHmac('sha256', getSecret()).update(payload).digest('base64url');
 }
 
 export function createSession(): string {
