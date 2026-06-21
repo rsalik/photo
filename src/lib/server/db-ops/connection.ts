@@ -40,9 +40,10 @@ let ready: Promise<Backend> | null = null;
 async function initBackend(): Promise<Backend> {
 	const safeProcessEnv = typeof process !== 'undefined' ? process.env : {};
 	let url = safeProcessEnv.DATABASE_URL;
+	let svelteEnv: any = null;
 	try {
 		// @ts-ignore
-		const svelteEnv = await import('$env/dynamic/private');
+		svelteEnv = await import('$env/dynamic/private');
 		if (svelteEnv?.env?.DATABASE_URL) {
 			url = svelteEnv.env.DATABASE_URL;
 		}
