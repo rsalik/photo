@@ -604,6 +604,16 @@
 <svelte:head>
 	<title>{photo.title} — {data.settings.siteTitle}</title>
 	<meta name="description" content={photo.description ?? photo.title} />
+	<meta property="og:type" content="article" />
+	<meta property="og:title" content={photo.title} />
+	<meta property="og:description" content={photo.description ?? data.settings.siteTitle} />
+	{#if data.ogImage}
+		<meta property="og:image" content={data.ogImage} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:image" content={data.ogImage} />
+	{/if}
 </svelte:head>
 
 {#snippet navHeading()}

@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { getFilterOptions, listPhotos } from '$lib/server/db';
+import { galleryOgKey, ogUrl } from '$lib/server/share';
 import { FILTER_KEYS, type GalleryFilters } from '$lib/types';
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -9,5 +10,5 @@ export const load: PageServerLoad = async ({ url }) => {
 		if (value) filters[key] = value;
 	}
 	const [photos, options] = await Promise.all([listPhotos(filters), getFilterOptions()]);
-	return { photos, options, filters };
+	return { photos, options, filters, ogImage: ogUrl(galleryOgKey(filters)) };
 };

@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { filteredNeighbors, getPhoto, similarPhotos } from '$lib/server/db';
+import { ogUrl } from '$lib/server/share';
 import { FILTER_KEYS, type GalleryFilters } from '$lib/types';
 
 export const load: PageServerLoad = async ({ params, url }) => {
@@ -22,5 +23,5 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	const nav = fromGallery ? await filteredNeighbors(filters, photo.id) : null;
 	const similar = nav ? [] : await similarPhotos(photo, 6);
 
-	return { photo, filters, nav, similar };
+	return { photo, filters, nav, similar, ogImage: ogUrl(`photo/${photo.id}`) };
 };

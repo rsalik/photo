@@ -13,6 +13,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "push-to-neon": "tsx scripts/push-to-neon.ts",
     "push-images": "tsx scripts/push-images.ts",
+    "build-og": "tsx scripts/build-og.ts",
     "normalize-gear": "tsx scripts/normalize-gear.ts"
   },
   "devDependencies": {

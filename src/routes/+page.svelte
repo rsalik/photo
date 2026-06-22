@@ -81,6 +81,16 @@
 <svelte:head>
 	<title>{data.settings.siteTitle} — {data.settings.siteSubtitle}</title>
 	<meta name="description" content="{data.settings.siteTitle} — a photography portfolio" />
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content={sheet.title === 'Gallery' ? data.settings.siteTitle : `${sheet.title} — ${data.settings.siteTitle}`} />
+	<meta property="og:description" content={frameLine} />
+	{#if data.ogImage}
+		<meta property="og:image" content={data.ogImage} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:image" content={data.ogImage} />
+	{/if}
 </svelte:head>
 
 <SiteHeader siteTitle={data.settings.siteTitle} isAdmin={data.isAdmin} />
