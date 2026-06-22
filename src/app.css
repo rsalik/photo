@@ -496,6 +496,79 @@
     width: 100%;
     margin: 4px 0;
   }
+
+  /* ---------------------------------------------------------------------
+     Mobile List view — a sticky horizontal film strip whose active frame
+     holds while its details scroll past beneath it, then glides to the next.
+     The strip bleeds to the screen edges so translateX centring (vw/2) is
+     exact; horizontal position is driven by JS from the scroll offset.
+  --------------------------------------------------------------------- */
+  .lvm-strip {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--film-ink);
+    margin-inline: calc(50% - 50vw);
+    box-shadow: 0 6px 18px rgba(20, 18, 14, 0.12);
+  }
+  .lvm-strip .lvm-rail {
+    flex: 0 0 auto;
+    height: 10px;
+    margin: 0;
+  }
+  .lvm-track {
+    display: flex;
+    height: var(--strip-h);
+    align-items: stretch;
+    will-change: transform;
+  }
+  .lvm-frame {
+    position: relative;
+    flex: 0 0 auto;
+    height: 100%;
+    overflow: hidden;
+    outline: 1px solid rgba(244, 241, 230, 0.08);
+    outline-offset: -1px;
+    opacity: 0.45;
+    filter: saturate(0.85);
+    transition:
+      opacity 0.4s ease,
+      filter 0.4s ease;
+  }
+  .lvm-frame.active {
+    opacity: 1;
+    filter: none;
+  }
+  .lvm-num {
+    position: absolute;
+    right: 5px;
+    bottom: 4px;
+    font-family: var(--font-caps);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--paper);
+    opacity: 0.85;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  }
+  .lvm-panel {
+    min-height: 72vh;
+    padding: 1.75rem 0.25rem 2rem;
+    border-bottom: 1px solid var(--hairline);
+    opacity: 0.5;
+    transition: opacity 0.4s ease;
+  }
+  .lvm-panel-on {
+    opacity: 1;
+  }
+  .lvm-panel-frame {
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
   /* per-frame marking bands above (edge text + number) and below (number +
      advance arrow + sparse DX). Cells match the frame widths so numbers align
      vertically top↔bottom and edge text sits over its own frame. */

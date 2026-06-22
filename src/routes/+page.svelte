@@ -8,9 +8,13 @@
 	import ContactSheet from '$lib/components/ContactSheet.svelte';
 	import MasonryGallery from '$lib/components/MasonryGallery.svelte';
 	import ListView from '$lib/components/ListView.svelte';
+	import ListViewMobile from '$lib/components/ListViewMobile.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	let vw = $state(0);
+	const listMobile = $derived(vw > 0 && vw < 640);
 
 	type View = 'film' | 'grid' | 'list';
 	let view = $state<View>('film');
@@ -71,6 +75,8 @@
 	// stable seed per view so a sheet always looks the same but albums/tags differ
 	const viewKey = $derived(`${sheet.label}++${sheet.title}`);
 </script>
+
+<svelte:window bind:innerWidth={vw} />
 
 <svelte:head>
 	<title>{data.settings.siteTitle} — {data.settings.siteSubtitle}</title>
@@ -149,7 +155,11 @@
 								{viewKey}
 							/>
 						{:else if view === 'list'}
-							<ListView photos={data.photos} albumContext={data.filters.album ?? ''} />
+							{#if listMobile}
+								<ListViewMobile photos={data.photos} albumContext={data.filters.album ?? ''} />
+							{:else}
+								<ListView photos={data.photos} albumContext={data.filters.album ?? ''} />
+							{/if}
 						{:else}
 							<MasonryGallery photos={data.photos} rowHeight={data.settings.galleryRowHeight} albumContext={data.filters.album ?? ''} />
 						{/if}
