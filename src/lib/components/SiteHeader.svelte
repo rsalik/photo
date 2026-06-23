@@ -6,7 +6,7 @@
 	let { siteTitle, isAdmin = false }: Props = $props();
 </script>
 
-<header class="relative px-6 pt-10 pb-7 text-center sm:pt-14">
+<header class="sticky top-0 z-40 bg-paper px-6 pt-8 pb-6 text-center sm:relative sm:pt-14 sm:pb-7">
 	<a href="/" class="inline-block">
 		<h1 class="type-display text-3xl sm:text-4xl">{siteTitle}</h1>
 	</a>

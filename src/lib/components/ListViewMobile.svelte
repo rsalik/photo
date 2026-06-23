@@ -2,7 +2,14 @@
 	import { onMount } from 'svelte';
 	import { FAVORITE_TAG, type Photo } from '$lib/types';
 	import { markMorph } from '$lib/morph';
-	import { brandFor } from '$lib/contactSheet';
+	import { develop } from '$lib/actions';
+	import {
+		assignRings,
+		brandFor,
+		frameLabel,
+		generateRollBarcodes,
+		topEdge
+	} from '$lib/contactSheet';
 	import Icon, { type IconName } from './Icon.svelte';
 	import PhotoTile from './PhotoTile.svelte';
 
@@ -14,10 +21,38 @@
 	const q = $derived(albumContext ? `?album=${encodeURIComponent(albumContext)}` : '');
 	const brand = $derived(brandFor(albumContext || 'ne'));
 
-	const STRIP_H = 230; // film strip height, px
-	const GAP = 3; // inter-frame margin, px
-	const STICK = 0.58; // fraction of a panel where the active frame holds still
+	const STRIP_H = 188; // photo height inside the strip
+	const GAP = 3; // inter-frame margin (matches the contact sheet)
+	const STICK = 0.6; // fraction of a photo's scroll where its frame holds still
 
+	// ---- film markings (identical generators to the contact sheet) ----
+	const frameW = $derived(
+		photos.map((p) => {
+			const ar = p.width / p.height;
+			return Math.round(Math.max(STRIP_H * 0.58, Math.min(STRIP_H * 1.7, STRIP_H * ar)));
+		})
+	);
+	const frameCenter = $derived.by(() => {
+		let x = 0;
+		const c: number[] = [];
+		for (const w of frameW) {
+			c.push(x + w / 2);
+			x += w + GAP;
+		}
+		return c;
+	});
+	const rollBarcodes = $derived.by(() => {
+		const frames = photos.map((p, i) => ({
+			idx: i,
+			length: Math.max(20, frameW[i]),
+			gap: i < photos.length - 1 ? GAP : 0
+		}));
+		return generateRollBarcodes(brand, frames, 250, 110, 14);
+	});
+	const isFav = (p: Photo) => p.tags.some((t) => t.toLowerCase() === FAVORITE_TAG);
+	const ringMap = $derived(assignRings(photos.filter(isFav).map((p) => p.id), brand.seed));
+
+	// ---- details ----
 	interface Meta {
 		icon: IconName;
 		label: string;
@@ -44,169 +79,167 @@
 		p.takenAt
 			? new Date(p.takenAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 			: null;
-	const isFav = (p: Photo) => p.tags.some((t) => t.toLowerCase() === FAVORITE_TAG);
 
-	// frame geometry: each frame's width follows its aspect ratio, clamped so very
-	// wide/tall frames stay legible. centres are cumulative for translateX maths.
-	const frameW = $derived(
-		photos.map((p) => {
-			const ar = p.width / p.height;
-			return Math.round(Math.max(STRIP_H * 0.58, Math.min(STRIP_H * 1.6, STRIP_H * ar)));
-		})
-	);
-	const frameCenter = $derived.by(() => {
-		let x = 0;
-		const c: number[] = [];
-		for (const w of frameW) {
-			c.push(x + w / 2);
-			x += w + GAP;
-		}
-		return c;
-	});
-
+	// ---- scroll choreography: vertical scroll drives both tracks horizontally ----
 	let vw = $state(0);
+	let vh = $state(0);
+	let headerH = $state(0);
 	let stripX = $state(0);
+	let detailX = $state(0);
 	let active = $state(0);
-	let panelsEl: HTMLElement;
-	let stripEl: HTMLElement;
-	let stripH = STRIP_H;
-	let panelTops: number[] = [];
+	let lvmEl: HTMLElement;
+	let lvmTop = 0; // document Y where the scroll choreography begins
 
-	// translateX that centres a fractional frame index in the viewport
-	function centerAt(f: number): number {
+	const seg = () => Math.max(380, vh * 0.82); // scroll px allotted per photo
+	const totalHeight = $derived(Math.max(1, photos.length) * (vh ? seg() : 600));
+
+	function centerOf(f: number): number {
 		const n = photos.length;
 		const i = Math.max(0, Math.min(n - 1, Math.floor(f)));
 		const j = Math.min(n - 1, i + 1);
-		const c = frameCenter[i] + (frameCenter[j] - frameCenter[i]) * (f - i);
-		return vw / 2 - c;
-	}
-
-	function measure() {
-		if (!panelsEl) return;
-		stripH = stripEl?.offsetHeight ?? STRIP_H;
-		panelTops = [...panelsEl.children].map(
-			(el) => (el as HTMLElement).getBoundingClientRect().top + window.scrollY
-		);
+		return frameCenter[i] + (frameCenter[j] - frameCenter[i]) * (f - i);
 	}
 
 	let raf = 0;
-	function update() {
+	function apply() {
 		raf = 0;
-		if (!panelTops.length) return;
-		const y = window.scrollY + stripH; // reference line: just under the sticky strip
-		let i = 0;
-		while (i < panelTops.length - 1 && panelTops[i + 1] <= y) i++;
-		const top = panelTops[i];
-		const next = panelTops[i + 1] ?? top + window.innerHeight;
-		const t = Math.max(0, Math.min(1, (y - top) / Math.max(1, next - top)));
-		// hold on frame i for the first STICK of the panel, then ease across to i+1
+		const n = photos.length;
+		// progress starts once the stage pins under the header
+		const p = Math.max(0, Math.min(n - 1, (window.scrollY - (lvmTop - headerH)) / seg()));
+		const i = Math.floor(p);
+		const t = p - i;
 		let f = i;
 		if (t > STICK) {
 			const m = (t - STICK) / (1 - STICK);
-			f = i + m * m * (3 - 2 * m); // smoothstep glide
+			f = i + m * m * (3 - 2 * m); // smoothstep glide between frames
 		}
-		stripX = centerAt(f);
-		active = Math.min(photos.length - 1, Math.round(f));
+		stripX = vw / 2 - centerOf(f);
+		detailX = -f * vw; // each detail card is one viewport wide
+		active = Math.min(n - 1, Math.round(f));
 	}
 	function onScroll() {
-		if (!raf) raf = requestAnimationFrame(update);
+		if (!raf) raf = requestAnimationFrame(apply);
 	}
 
 	onMount(() => {
 		const sync = () => {
 			vw = window.innerWidth;
-			measure();
-			update();
+			vh = window.innerHeight;
+			headerH = (document.querySelector('header')?.offsetHeight ?? 0) || 0;
+			lvmTop = (lvmEl?.getBoundingClientRect().top ?? 0) + window.scrollY;
+			apply();
 		};
 		sync();
-		const ro = new ResizeObserver(sync);
-		ro.observe(panelsEl);
 		window.addEventListener('scroll', onScroll, { passive: true });
 		window.addEventListener('resize', sync);
-		// images settling can shift panel offsets; re-measure shortly after mount
-		const t = setTimeout(sync, 500);
 		return () => {
 			window.removeEventListener('scroll', onScroll);
 			window.removeEventListener('resize', sync);
-			ro.disconnect();
-			clearTimeout(t);
 			if (raf) cancelAnimationFrame(raf);
 		};
 	});
 </script>
 
-<div class="lvm" style="--strip-h: {STRIP_H}px">
-	<!-- sticky horizontal film strip -->
-	<div class="lvm-strip" bind:this={stripEl} style="color: {brand.color}">
-		<span class="lvm-rail film-edge sprocket-band" aria-hidden="true"></span>
-		<div class="lvm-track" style="transform: translate3d({stripX}px, 0, 0); gap: {GAP}px">
-			{#each photos as photo, i (photo.id)}
-				<a
-					href="/photo/{photo.id}{q}"
-					onclick={markMorph}
-					class="lvm-frame"
-					class:active={i === active}
-					style="width: {frameW[i]}px"
-					aria-label={photo.title}
-				>
-					<PhotoTile {photo} eager={i < 3} />
-					{#if isFav(photo)}
-						<span class="absolute top-1.5 left-1.5 text-amber-300"><Icon name="star" size={13} /></span>
-					{/if}
-					<span class="lvm-num">{i + 1}</span>
-				</a>
-			{/each}
-		</div>
-		<span class="lvm-rail film-edge sprocket-band" aria-hidden="true"></span>
-	</div>
+{#snippet barcode(w: number, idx: number)}
+	<svg class="mark-barcode" width={w + GAP} height="9" viewBox="0 0 {w + GAP} 9" preserveAspectRatio="none" aria-hidden="true">
+		{#each rollBarcodes.get(idx) || [] as r, i (i)}
+			<rect x={r.offsetAlong} y={r.offsetAcross} width={r.widthAlong} height={r.heightAcross} fill="currentColor" />
+		{/each}
+	</svg>
+{/snippet}
 
-	<!-- per-photo detail panels; the active one is read while its frame holds above -->
-	<div class="lvm-panels" bind:this={panelsEl}>
-		{#each photos as photo, i (photo.id)}
-			{@const fav = isFav(photo)}
-			<section class="lvm-panel" class:lvm-panel-on={i === active}>
-				<span class="lvm-panel-frame type-mono">Frame {i + 1} / {photos.length}</span>
-				<a href="/photo/{photo.id}{q}" onclick={markMorph} class="min-w-0">
-					<h2 class="type-display mt-1 text-3xl leading-tight">{photo.title}</h2>
-				</a>
-				{#if dateOf(photo)}<p class="type-label mt-2 text-ink-soft">{dateOf(photo)}</p>{/if}
-				{#if photo.description}
-					<p class="mt-3 max-w-prose text-sm leading-relaxed text-ink-soft">{photo.description}</p>
-				{/if}
+{#snippet advArrow()}
+	<svg width="14" height="9" viewBox="0 0 14 9" class="block" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="M1 4.5 H11" /><path d="M7.5 1.5 L12 4.5 L7.5 7.5" />
+	</svg>
+{/snippet}
 
-				<div class="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-					{#each metaFor(photo) as m (m.key + m.href)}
-						<a
-							href={m.href}
-							class="type-mono inline-flex items-center gap-1.5 whitespace-nowrap text-ink-soft transition-colors hover:text-accent"
-						>
-							<Icon name={m.icon} size={14} />{m.label}
+{#snippet edgeText(te: NonNullable<ReturnType<typeof topEdge>>)}
+	<span class="mark-edge" style="left: {te.pos * 100}%">
+		{#each te.segments as s, i (i)}{#if s.bold}<b>{s.t}</b>{:else}{s.t}{/if}{/each}
+	</span>
+{/snippet}
+
+<div class="lvm" bind:this={lvmEl} style="height: {totalHeight}px">
+	<div class="lvm-stage" style="top: {headerH}px; height: calc(100dvh - {headerH}px)">
+		<!-- film strip: one continuous roll, full contact-sheet markings -->
+		<div class="lvm-strip" style="color: {brand.color}">
+			<div class="sheet-strip lvm-track" style="transform: translate3d({stripX}px,0,0)">
+				<div class="mark-band flex" style="gap: {GAP}px">
+					{#each photos as photo, i (photo.id)}
+						{@const te = topEdge(brand, i, photo)}
+						<div class="mark-cell" style="flex: 0 0 {frameW[i]}px">
+							<span class="mark-num">{frameLabel(i)}</span>
+							{#if te && frameW[i] > 80}{@render edgeText(te)}{/if}
+						</div>
+					{/each}
+				</div>
+				<div class="film-edge sprocket-band"></div>
+				<div class="flex" style="height: {STRIP_H}px; gap: {GAP}px">
+					{#each photos as photo, i (photo.id)}
+						{@const ring = ringMap.get(photo.id) ?? null}
+						<a href="/photo/{photo.id}{q}" onclick={markMorph} class="sheet-frame lvm-frame" class:active={i === active} style="flex: 0 0 {frameW[i]}px" aria-label={photo.title}>
+							<div use:develop={Math.min((i % 12) * 50, 360)} class="h-full w-full">
+								<PhotoTile {photo} displayWidth={frameW[i]} eager={i < 4} showTitle />
+							</div>
+							{#if ring}
+								<svg class="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" style="transform: rotate({ring.rotate}deg)" aria-hidden="true">
+									<path d={ring.path} fill="none" stroke={ring.color} stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="0.9" />
+								</svg>
+							{/if}
 						</a>
 					{/each}
 				</div>
+				<div class="film-edge sprocket-band"></div>
+				<div class="mark-band mark-band-b flex" style="gap: {GAP}px">
+					{#each photos as photo, i (photo.id)}
+						<div class="mark-cell mark-cell-b" style="flex: 0 0 {frameW[i]}px">
+							{@render barcode(frameW[i], i)}
+							<span class="mark-num mark-num-b">{frameLabel(i)}</span>
+							<span class="mark-adv"><span class="mark-adv-label">{frameLabel(i)}A</span>{@render advArrow()}</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		</div>
 
-				{#if photo.albums.length || photo.tags.length || fav}
-					<div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-hairline pt-4">
-						{#if fav}
-							<a href="/?favorite=1" class="type-label inline-flex items-center gap-1.5 text-amber-600">
-								<Icon name="star" size={14} />Favorite
-							</a>
+		<!-- details: a horizontal track, one card per photo, synced to the strip -->
+		<div class="lvm-details">
+			<div class="lvm-detail-track" style="transform: translate3d({detailX}px,0,0)">
+				{#each photos as photo, i (photo.id)}
+					{@const fav = isFav(photo)}
+					<section class="lvm-detail" style="width: {vw}px">
+						<span class="type-mono text-ink-soft">Frame {i + 1} / {photos.length}</span>
+						<a href="/photo/{photo.id}{q}" onclick={markMorph} class="block">
+							<h2 class="type-display mt-1 text-3xl leading-tight">{photo.title}</h2>
+						</a>
+						{#if dateOf(photo)}<p class="type-label mt-2 text-ink-soft">{dateOf(photo)}</p>{/if}
+						{#if photo.description}
+							<p class="mt-3 line-clamp-3 max-w-prose text-sm leading-relaxed text-ink-soft">{photo.description}</p>
 						{/if}
-						{#each photo.albums as album (album)}
-							<a href="/?album={encodeURIComponent(album)}" class="type-label inline-flex items-center gap-1.5 text-accent">
-								<Icon name="album" size={14} />{album}
-							</a>
-						{/each}
-						{#each photo.tags as tag (tag)}
-							{#if tag.toLowerCase() !== FAVORITE_TAG}
-								<a href="/?tag={encodeURIComponent(tag)}" class="type-label inline-flex items-center gap-1.5 text-ink-soft">
-									<Icon name="tag" size={14} />{tag}
+						<div class="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+							{#each metaFor(photo) as m (m.key + m.href)}
+								<a href={m.href} class="type-mono inline-flex items-center gap-1.5 whitespace-nowrap text-ink-soft hover:text-accent">
+									<Icon name={m.icon} size={14} />{m.label}
 								</a>
-							{/if}
-						{/each}
-					</div>
-				{/if}
-			</section>
-		{/each}
+							{/each}
+						</div>
+						{#if photo.albums.length || photo.tags.length || fav}
+							<div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-hairline pt-4">
+								{#if fav}<a href="/?favorite=1" class="type-label inline-flex items-center gap-1.5 text-amber-600"><Icon name="star" size={14} />Favorite</a>{/if}
+								{#each photo.albums as album (album)}
+									<a href="/?album={encodeURIComponent(album)}" class="type-label inline-flex items-center gap-1.5 text-accent"><Icon name="album" size={14} />{album}</a>
+								{/each}
+								{#each photo.tags as tag (tag)}
+									{#if tag.toLowerCase() !== FAVORITE_TAG}
+										<a href="/?tag={encodeURIComponent(tag)}" class="type-label inline-flex items-center gap-1.5 text-ink-soft"><Icon name="tag" size={14} />{tag}</a>
+									{/if}
+								{/each}
+							</div>
+						{/if}
+					</section>
+				{/each}
+			</div>
+		</div>
 	</div>
 </div>
