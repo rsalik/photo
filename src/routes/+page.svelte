@@ -22,6 +22,8 @@
 	onMount(() => {
 		const v = localStorage.getItem('gallery-view');
 		if (v === 'grid' || v === 'film' || v === 'list') view = v;
+		// the scroll-choreographed List view is the default on phones
+		else if (window.matchMedia('(max-width: 639px)').matches) view = 'list';
 		ready = true;
 	});
 	$effect(() => {

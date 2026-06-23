@@ -506,6 +506,10 @@
   --------------------------------------------------------------------- */
   .lvm {
     position: relative;
+    /* full-bleed the whole component so the film strip reaches both screen
+       edges (the sticky stage clips overflow, so the bleed must live here) */
+    margin-inline: calc(50% - 50vw);
+    width: 100vw;
   }
   .lvm-stage {
     position: sticky;
@@ -517,7 +521,6 @@
   .lvm-strip {
     overflow: hidden;
     background: var(--film-ink);
-    margin-inline: calc(50% - 50vw);
     box-shadow: 0 6px 18px rgba(20, 18, 14, 0.12);
   }
   .lvm-strip .lvm-track {
@@ -536,7 +539,6 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    margin-inline: calc(50% - 50vw);
   }
   .lvm-detail-track {
     display: flex;
