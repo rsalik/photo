@@ -3,8 +3,7 @@ import path from 'node:path';
 // laptop (admin uploads), not on Cloudflare Workers in production.
 type Sharp = typeof import('sharp');
 const loadSharp = (): Promise<Sharp> => import('sharp').then(m => m.default ?? m) as Promise<Sharp>;
-import { putDerived, putOg, putOriginal } from './storage';
-import { composePhotoOg } from './og';
+import { putDerived, putOriginal } from './storage';
 import { IMAGE_SIZES } from '$lib/types';
 
 export interface ProcessedImage {
@@ -44,9 +43,6 @@ export async function processImage(buffer: Buffer, id: string, originalName: str
 
 	// full-resolution JPEG for display (originals may be HEIC/TIFF/RAW-ish)
 	await putDerived(id, 'full', await img.clone().jpeg({ quality: 90, mozjpeg: true }).toBuffer());
-
-	// social share card for this photo
-	await putOg(`photo/${id}`, await composePhotoOg(buffer));
 
 	const blur = await img
 		.clone()

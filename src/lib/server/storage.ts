@@ -81,13 +81,6 @@ export const putOriginal = (id: string, ext: string, body: Buffer) =>
 export const putDerived = (id: string, size: string, body: Buffer) =>
 	put(derivedKey(id, size), body, 'image/jpeg');
 
-/** Store an Open-Graph share card under og/<path>.jpg. */
-export const putOg = (path: string, body: Buffer) => put(`og/${path}.jpg`, body, 'image/jpeg');
-
-/** Absolute public URL for an OG card (null without a CDN domain configured). */
-export const ogPublicUrl = (path: string): string | null =>
-	publicBase ? `${publicBase}/og/${path}.jpg` : null;
-
 /** Public CDN URL for a derived size, when R2_PUBLIC_URL is configured. */
 export function derivedPublicUrl(id: string, size: string): string | null {
 	return publicBase ? `${publicBase}/${derivedKey(id, size)}` : null;
