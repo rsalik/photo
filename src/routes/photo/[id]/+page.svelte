@@ -297,6 +297,34 @@
 		toggleZoom(e.clientX, e.clientY);
 	}
 
+	// mobile: double-tap the photo toggles the immersive fullscreen view (touch
+	// has no wheel; a binary toggle is the fluid, expected gesture on a phone)
+	let lastTapAt = 0;
+	let lastTapPos = { x: 0, y: 0 };
+	function onTouchEnd(e: TouchEvent) {
+		if (phase !== 'done') return;
+		const t = e.changedTouches[0];
+		if (!t || (e.target as Element).closest('footer, header, aside')) {
+			lastTapAt = 0;
+			return;
+		}
+		const now = performance.now();
+		const near = Math.hypot(t.clientX - lastTapPos.x, t.clientY - lastTapPos.y) < 40;
+		if (now - lastTapAt < 300 && near) {
+			e.preventDefault();
+			if (fsTarget >= 1 || zoomTarget > 1) exitFullscreen();
+			else {
+				fsTarget = 1;
+				atBoundary = false;
+				startFsLoop();
+			}
+			lastTapAt = 0;
+		} else {
+			lastTapAt = now;
+			lastTapPos = { x: t.clientX, y: t.clientY };
+		}
+	}
+
 	function toggleZoom(clientX: number, clientY: number) {
 		if (zoomTarget > 1) {
 			// Zoom Detail → Default
@@ -776,7 +804,7 @@
 {/snippet}
 
 <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
-<div class="fixed inset-0 overflow-hidden bg-paper" onclick={skip} ondblclick={onDblClick} onwheel={onWheel}>
+<div class="fixed inset-0 overflow-hidden bg-paper [touch-action:manipulation]" onclick={skip} ondblclick={onDblClick} ontouchend={onTouchEnd} onwheel={onWheel}>
 	<!-- photograph: laid out at its settled box, animated purely via transform -->
 	<div
 		class="absolute will-change-transform"
@@ -886,11 +914,10 @@
 				<!-- metadata chips, flowing into columns; full width when stacked
 				     so every chip shows without scrolling -->
 				<div
-					class="grid min-w-0 flex-1 auto-cols-max grid-flow-col {(vw || 1280) < 640
-						? 'grid-rows-3'
-						: stackedFooter
-							? 'grid-rows-2'
-							: 'grid-rows-3'} gap-x-7 gap-y-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					class="min-w-0 flex-1 gap-x-7 gap-y-2 pb-0.5 {(vw || 1280) < 640
+						? 'flex flex-wrap'
+						: 'grid auto-cols-max grid-flow-col overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ' +
+							(stackedFooter ? 'grid-rows-2' : 'grid-rows-3')}"
 					onwheel={(e) => {
 						const el = e.currentTarget;
 						if (el.scrollWidth > el.clientWidth + 2) {

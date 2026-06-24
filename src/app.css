@@ -520,12 +520,14 @@
   }
   .lvm-strip {
     overflow: hidden;
-    background: var(--film-ink);
-    box-shadow: 0 6px 18px rgba(20, 18, 14, 0.12);
   }
   .lvm-strip .lvm-track {
     width: max-content;
     will-change: transform;
+    /* the off-black film base covers only the roll — it begins and ends with the
+       first and last frame, leaving paper to either side */
+    background: var(--film-ink);
+    box-shadow: 0 6px 18px rgba(20, 18, 14, 0.12);
   }
   .lvm-frame {
     position: relative;

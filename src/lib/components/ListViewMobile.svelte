@@ -100,9 +100,12 @@
 		return frameCenter[i] + (frameCenter[j] - frameCenter[i]) * (f - i);
 	}
 
+	let targetStripX = 0;
+	let targetDetailX = 0;
 	let raf = 0;
-	function apply() {
-		raf = 0;
+	const EASE = 0.16; // how quickly the tracks chase the scroll target (lower = smoother)
+
+	function computeTargets() {
 		const n = photos.length;
 		// progress starts once the stage pins under the header
 		const p = Math.max(0, Math.min(n - 1, (window.scrollY - (lvmTop - headerH)) / seg()));
@@ -113,12 +116,28 @@
 			const m = (t - STICK) / (1 - STICK);
 			f = i + m * m * (3 - 2 * m); // smoothstep glide between frames
 		}
-		stripX = vw / 2 - centerOf(f);
-		detailX = -f * vw; // each detail card is one viewport wide
+		targetStripX = vw / 2 - centerOf(f);
+		targetDetailX = -f * vw; // each detail card is one viewport wide
 		active = Math.min(n - 1, Math.round(f));
 	}
+
+	// rAF loop eases the actual transforms toward the target for fluid, damped motion
+	function tick() {
+		raf = 0;
+		const dx = targetStripX - stripX;
+		const dd = targetDetailX - detailX;
+		if (Math.abs(dx) < 0.4 && Math.abs(dd) < 0.4) {
+			stripX = targetStripX;
+			detailX = targetDetailX;
+			return;
+		}
+		stripX += dx * EASE;
+		detailX += dd * EASE;
+		raf = requestAnimationFrame(tick);
+	}
 	function onScroll() {
-		if (!raf) raf = requestAnimationFrame(apply);
+		computeTargets();
+		if (!raf) raf = requestAnimationFrame(tick);
 	}
 
 	onMount(() => {
@@ -127,7 +146,9 @@
 			vh = window.innerHeight;
 			headerH = (document.querySelector('header')?.offsetHeight ?? 0) || 0;
 			lvmTop = (lvmEl?.getBoundingClientRect().top ?? 0) + window.scrollY;
-			apply();
+			computeTargets();
+			stripX = targetStripX; // snap on layout changes (no easing)
+			detailX = targetDetailX;
 		};
 		sync();
 		window.addEventListener('scroll', onScroll, { passive: true });
@@ -164,7 +185,7 @@
 	<div class="lvm-stage" style="top: {headerH}px; height: calc(100dvh - {headerH}px)">
 		<!-- film strip: one continuous roll, full contact-sheet markings -->
 		<div class="lvm-strip" style="color: {brand.color}">
-			<div class="sheet-strip lvm-track" style="transform: translate3d({stripX}px,0,0)">
+			<div class="sheet-strip lvm-track py-1" style="transform: translate3d({stripX}px,0,0)">
 				<div class="mark-band flex" style="gap: {GAP}px">
 					{#each photos as photo, i (photo.id)}
 						{@const te = topEdge(brand, i, photo)}
@@ -209,7 +230,7 @@
 				{#each photos as photo, i (photo.id)}
 					{@const fav = isFav(photo)}
 					<section class="lvm-detail" style="width: {vw}px">
-						<span class="type-mono text-ink-soft">Frame {i + 1} / {photos.length}</span>
+						<span class="type-mono text-ink-soft">Photo {i + 1} / {photos.length}</span>
 						<a href="/photo/{photo.id}{q}" onclick={markMorph} class="block">
 							<h2 class="type-display mt-1 text-3xl leading-tight">{photo.title}</h2>
 						</a>
