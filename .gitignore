@@ -1,0 +1,29 @@
+# Dependencies and generated output
+node_modules/
+/build/
+/.svelte-kit/
+/coverage/
+
+# Local content and credentials
+/data/
+/secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+
+# Deployment and editor state
+/.wrangler/
+/.vercel/
+/.claude/
+.DS_Store
+vite.config.ts.timestamp-*
+*.log
+
+# Local browser checks and one-off debugging
+/.playwright-mcp/
+/playwright-report/
+/test-results/
+/.compile-tmp.mjs
+/.local-notes/

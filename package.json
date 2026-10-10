@@ -1,0 +1,61 @@
+{
+  "name": "photo-album",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "seed": "node scripts/seed.js",
+    "migrate": "tsx scripts/migrate.ts",
+    "push-to-neon": "tsx scripts/push-to-neon.ts",
+    "pull-from-neon": "tsx scripts/pull-from-neon.ts",
+    "push-images": "tsx scripts/push-images.ts",
+    "normalize-gear": "tsx scripts/normalize-gear.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "deploy": "bash scripts/deploy.sh",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-cloudflare": "^7.2.9",
+    "@sveltejs/kit": "^2.70.3",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.9.3",
+    "prettier": "^3.9.6",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte": "^5.56.3",
+    "svelte-check": "^4.6.0",
+    "tailwindcss": "^4.3.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "wrangler": "^4.132.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1073.0",
+    "@cf-wasm/og": "^0.4.0",
+    "@electric-sql/pglite": "^0.5.3",
+    "@neondatabase/serverless": "^1.1.0",
+    "better-sqlite3": "^12.10.0",
+    "sharp": "^0.35.4"
+  },
+  "description": "Photography portfolio with progressive image loading, metadata-driven galleries, and local-first publishing.",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rsalik/photo.git"
+  },
+  "homepage": "https://photos.ryansalik.com",
+  "overrides": {
+    "@sveltejs/kit": {
+      "cookie": "0.7.2"
+    }
+  }
+}

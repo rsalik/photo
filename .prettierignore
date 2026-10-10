@@ -1,0 +1,16 @@
+node_modules/
+.svelte-kit/
+build/
+data/
+.wrangler/
+.vercel/
+.claude/
+.playwright-mcp/
+test-results/
+playwright-report/
+secrets
+.env
+.env.*
+.dev.vars*
+.compile-tmp.mjs
+package-lock.json
