@@ -1,10 +1,12 @@
 # Photo Album
 
-A personal photography portfolio with an emphasis on composition, typography, and the details behind each photograph. Built with Svelte 5, SvelteKit, and TypeScript; served by Cloudflare Pages, Neon Postgres, and R2.
+My personal photography portfolio, built with Svelte 5, SvelteKit, and TypeScript; served by Cloudflare Pages, Neon Postgres, and R2. The website mimics the look of contact sheets and strips of film.
 
-**[View the portfolio →](https://photos.ryansalik.com)**
+**[View the site →](https://photos.ryansalik.com)**
 
 ![Film contact-sheet gallery with photographs from Japan](docs/images/portfolio.webp)
+
+> Thank you to Claude for writing this README.
 
 ## The experience
 
